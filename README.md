@@ -4,7 +4,7 @@ Navigate the directory to see stages of analysis
 
 ## Directory
 
-1. [Preliminary Analysis of Met and Flux Data]
+1. [Preliminary Analysis of Met and Flux Data](https://srussell2416.github.io/Rush_Ranch/ReddyProc_Analysis.html)
 2. [Questions, Hypotheses, Goals]
 3. [Input File Creation for ReddyFlux Partitioning Online Tool]
 4. [Comparison of Partitioning Methods]
