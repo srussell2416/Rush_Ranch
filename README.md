@@ -1,6 +1,6 @@
 # Analysis of Met and Carbon Flux at Rush Ranch
 
-Navigate the Directory to 
+Navigate the directory to see stages of analysis
 
 ## Directory
 
