@@ -1,0 +1,62 @@
+---
+title: "Rush Ranch Data"
+output: 
+  html_document:
+    toc: true
+    number_sections: true
+    theme: paper
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(lubridate)
+```
+
+# Loading Data
+
+Load "USSrr_v2.csv", format date time into POSIXct, create new DOY that begins with April 1st, extract month from date.
+
+```{r}
+data <- read.csv("~/Documents/MS_Thesis/USSrr_v2.csv") %>%
+  mutate(date = as.POSIXct(strptime(paste(year, DOY, paste(floor(time), round((time-floor(time))*60),                               sep=":")), format="%Y %j %H:%M")),
+         DOY2 = if_else(DOY >= 91, DOY - 90, DOY + 275),
+         DOY2 = c(lead(DOY2)),
+         Month = month(date))
+```
+
+# Year variable
+
+Create variable containing range of actual years represented by the new DOY variable.
+
+```{r}
+data$Year2[data$Month < 04 & data$year == 2014] <- "2013-2014"
+data$Year2[data$Month >= 04 & data$year == 2014] <- "2014-2015"
+data$Year2[data$Month < 04 & data$year == 2015] <- "2014-2015"
+data$Year2[data$Month >= 04 & data$year == 2015] <- "2015-2016"
+data$Year2[data$Month < 04 & data$year == 2016] <- "2015-2016"
+data$Year2[data$Month >= 04 & data$year == 2016] <- "2016-2017"
+data$Year2[data$Month < 04 & data$year == 2017] <- "2016-2017"
+data$Year2[data$Month >= 04 & data$year == 2017] <- "2017-2018"
+data$Year2[data$Month < 04 & data$year == 2018] <- "2017-2018"
+data$Year2[data$Month >= 04 & data$year == 2018] <- "2018-2019"
+
+```
+
+# Select and Rename Variables needed for ReddyProc Online Tool
+
+And write to new csv.
+
+```{r}
+data <- data %>%
+  select(year, DOY, time, wc_gf, LE_gf, H_gf, Rg, TA, RH, VPD) %>%
+  rename(Year = year,
+         DoY = DOY,
+         Hour = time,
+         NEE = wc_gf,
+         LE = LE_gf,
+         H = H_gf,
+         Tair = TA,
+         rH = RH) %>%
+  drop_na()
+write.csv(data, "RR_partitioning.csv")
+```

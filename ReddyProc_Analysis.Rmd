@@ -1,0 +1,42 @@
+---
+title: "ReddyProc Output"
+output: 
+  html_document:
+    toc: true
+    number_sections: true
+    theme: paper
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(lubridate)
+```
+
+# Load and Clean Data
+
+* Load units and data into separate data.frames. 
+* Convert numeric variables to numeric class. 
+* Create POSIXct date variable. 
+* Examine variable names and units.
+
+```{r}
+units <- read.table("~/Documents/MS_Thesis/REddyResults_RushRanch_20191007_31248140/output.txt",
+                   header=T,
+                   nrows = 1) 
+data <- read.table("~/Documents/MS_Thesis/REddyResults_RushRanch_20191007_31248140/output.txt",
+                   header=T) %>%
+    filter(Hour != "-") %>%
+    mutate(Hour = as.numeric(as.character(Hour)),
+          date = as.POSIXct(strptime(paste(Year, DoY, paste(floor(Hour), round((Hour-floor(Hour))*60),                               sep=":")), format="%Y %j %H:%M")))
+
+units %>%
+  pivot_longer(everything(), names_to = "Variable", values_to = "Unit") %>%
+  DT::datatable()
+```
+
+# Comparison by Paritioning Technique {.tabset}
+
+## 
+
+```{r}
+```
