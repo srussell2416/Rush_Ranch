@@ -1,0 +1,220 @@
+---
+title: "Rush Ranch Update 21/10/19"
+output: ioslides_presentation
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(lubridate)
+library(plotly)
+data <- read.csv("~/Documents/MS_Thesis/Rush_Ranch/USSrr_v2.csv") %>%
+  mutate(date = as.POSIXct(strptime(paste(year, DOY, paste(floor(time), round((time-floor(time))*60),                               sep=":")), format="%Y %j %H:%M")),
+         DOY2 = if_else(DOY >= 91, DOY - 90, DOY + 275),
+         DOY2 = c(lead(DOY2)),
+         Month = month(date))
+
+data$Year2[data$Month < 04 & data$year == 2014] <- "2013-2014"
+data$Year2[data$Month >= 04 & data$year == 2014] <- "2014-2015"
+data$Year2[data$Month < 04 & data$year == 2015] <- "2014-2015"
+data$Year2[data$Month >= 04 & data$year == 2015] <- "2015-2016"
+data$Year2[data$Month < 04 & data$year == 2016] <- "2015-2016"
+data$Year2[data$Month >= 04 & data$year == 2016] <- "2016-2017"
+data$Year2[data$Month < 04 & data$year == 2017] <- "2016-2017"
+data$Year2[data$Month >= 04 & data$year == 2017] <- "2017-2018"
+data$Year2[data$Month < 04 & data$year == 2018] <- "2017-2018"
+data$Year2[data$Month >= 04 & data$year == 2018] <- "2018-2019"
+
+```
+
+# Environmental Variables
+
+## Rainfall
+
+```{r, echo = F}
+plot_ly(data, x = ~date, y = ~mm, type = 'bar')
+```
+
+## Salinity
+
+```{r, echo = F}
+plot_ly(data, x = ~date, y = ~Sal, type = 'scatter', mode = "line")
+```
+
+## Air temp
+
+```{r, echo = F}
+plot_ly(data, x = ~date, y = ~TA, type = 'scatter', mode = "lines")
+```
+
+## Water Table
+
+```{r, echo = F}
+plot_ly(data, x = ~date, y = ~Depth, type = 'scatter', mode = "lines")
+```
+
+## NDVI
+
+```{r, echo = F}
+plot_ly(data, x = ~date, y = ~NDVI_camera, type = 'scatter', mode = "lines")
+```
+
+## pH
+
+```{r, echo = F}
+plot_ly(data, x = ~date, y = ~pH, type = 'scatter', mode = "lines")
+```
+
+## Soil Water Content
+
+```{r, echo = F}
+plot_ly(data, x = ~date, y = ~SWC, type = 'scatter', mode = "lines")
+```
+
+# Preliminary Dataset: Comparison by Paritioning Technique
+
+## Cumulative NEE
+
+```{r, echo = F}
+data %>%
+  group_by(Year2) %>%
+  mutate(ANN_NEE = er_ANNnight + gpp_ANNnight,
+         Reich_NEE = er_Reichstein + gpp_Reichstein,
+         linear_NEE = er_linear + gpp_linear,
+         ANN = cumsum(ANN_NEE),
+         Reich = cumsum(Reich_NEE),
+         linear = cumsum(linear_NEE)) %>%
+  select(ANN, Reich, linear, Year2, DOY2) %>%
+  pivot_longer(cols = c(ANN, Reich, linear),
+               names_to = "Method",
+               values_to = "cum_NEE") %>%
+  drop_na() %>%
+  filter(DOY2 > 1,
+         Year2 != "2013-2014") %>%
+  ggplot(aes(x = DOY2, y = cum_NEE, color = Year2)) +
+  facet_wrap(~Method) +
+  ylab("Cumulative NEE( µmol CO2 m-2 s-1)") +
+  xlab("Days since April 1st") +
+  geom_line() +
+  theme_bw()
+```
+
+## Cumulative ER
+
+```{r, echo = F}
+data %>%
+  group_by(Year2) %>%
+  mutate(ANN = cumsum(er_ANNnight),
+         Reich = cumsum(er_Reichstein),
+         linear = cumsum(er_ANNnight)) %>%
+  select(ANN, Reich, linear, Year2, DOY2) %>%
+  pivot_longer(cols = c(ANN, Reich, linear),
+               names_to = "Method",
+               values_to = "cum_ER") %>%
+  drop_na() %>%
+  filter(DOY2 > 1,
+         Year2 != "2013-2014") %>%
+  ggplot(aes(x = DOY2, y = cum_ER, color = Year2)) +
+  facet_wrap(~Method) +
+  ylab("Cumulative ER( µmol CO2 m-2 s-1)") +
+  xlab("Days since April 1st") +
+  geom_line() +
+  theme_bw()
+```
+
+## Cumulative GPP
+
+```{r, echo = F}
+data %>%
+  group_by(Year2) %>%
+  mutate(ANN = cumsum(gpp_ANNnight),
+         Reich = cumsum(gpp_Reichstein),
+         linear = cumsum(gpp_ANNnight)) %>%
+  select(ANN, Reich, linear, Year2, DOY2) %>%
+  pivot_longer(cols = c(ANN, Reich, linear),
+               names_to = "Method",
+               values_to = "cum_GPP") %>%
+  drop_na() %>%
+  filter(DOY2 > 1,
+         Year2 != "2013-2014") %>%
+  ggplot(aes(x = DOY2, y = cum_GPP, color = Year2)) +
+  facet_wrap(~Method) +
+  ylab("Cumulative GPP ( µmol CO2 m-2 s-1)") +
+  xlab("Days since April 1st") +
+  geom_line() +
+  theme_bw()
+```
+
+# ReddyProc Output
+
+## Comparison by Flux and Partitioning Method
+
+```{r, echo = F}
+data <- read.table("~/Documents/MS_Thesis/Rush_Ranch/REddyResults_RushRanch_20191007_31248140/output.txt",
+                   header=T) %>%
+        filter(Hour != "-") %>%
+        mutate(
+          Hour = as.numeric(as.character(Hour)),
+          date = as.POSIXct(strptime(paste(Year, DoY, paste(floor(Hour), round((Hour-floor(Hour))*60),                               sep=":")), format="%Y %j %H:%M")),
+          DoY = as.numeric(as.character(DoY)),
+          DOY2 = if_else(DoY >= 91, DoY - 90, DoY + 275),
+          DOY2 = c(lead(DOY2)),
+          Month = month(date),
+          Year =  as.numeric(as.character(Year)),
+          GPP_f = as.numeric(as.character(GPP_f)),
+          GPP_DT = as.numeric(as.character(GPP_DT)),
+          Reco = as.numeric(as.character(Reco)),
+          Reco_DT = as.numeric(as.character(Reco_DT))
+         )
+
+data$Year2[data$Month < 04 & data$Year == 2014] <- "2013-2014"
+data$Year2[data$Month >= 04 & data$Year == 2014] <- "2014-2015"
+data$Year2[data$Month < 04 & data$Year == 2015] <- "2014-2015"
+data$Year2[data$Month >= 04 & data$Year == 2015] <- "2015-2016"
+data$Year2[data$Month < 04 & data$Year == 2016] <- "2015-2016"
+data$Year2[data$Month >= 04 & data$Year == 2016] <- "2016-2017"
+data$Year2[data$Month < 04 & data$Year == 2017] <- "2016-2017"
+data$Year2[data$Month >= 04 & data$Year == 2017] <- "2017-2018"
+data$Year2[data$Month < 04 & data$Year == 2018] <- "2017-2018"
+data$Year2[data$Month >= 04 & data$Year == 2018] <- "2018-2019"
+
+data2 <- read.csv("~/Documents/MS_Thesis/Rush_Ranch/USSrr_v2.csv") %>%
+  mutate(date = as.POSIXct(strptime(paste(year, DOY, paste(floor(time), round((time-floor(time))*60),                               sep=":")), format="%Y %j %H:%M")))
+
+data %>%
+  left_join(data2[, c('date','gpp_ANNnight','er_ANNnight')], by = 'date') %>%
+  group_by(Year2) %>%
+  mutate(GPP_Nighttime = cumsum(-as.numeric(as.character(GPP_f))*1800*12.01e-6),
+         GPP_Daytime = cumsum(-as.numeric(as.character(GPP_DT))*1800*12.01e-6),
+         GPP_ANN = cumsum(as.numeric(as.character(gpp_ANNnight))*1800*12.01e-6),
+         Reco_Nighttime = cumsum(as.numeric(as.character(Reco))*1800*12.01e-6),
+         Reco_Daytime = cumsum(as.numeric(as.character(Reco_DT))*1800*12.01e-6),
+         Reco_ANN = cumsum(as.numeric(as.character(er_ANNnight))*1800*12.01e-6)
+         ) %>%
+  select(GPP_Nighttime, GPP_Daytime, GPP_ANN, Reco_Nighttime, Reco_Daytime, Reco_ANN, Year2, DOY2) %>%
+  pivot_longer(cols = -c(Year2, DOY2),
+               names_to = c("Flux", "Method"),
+               names_sep = c("_"),
+               values_to = "cum_value") %>%
+  mutate(cum_value = as.numeric(as.character(cum_value))) %>%
+  drop_na() %>%
+  filter(DOY2 > 1,
+         Year2 != "2013-2014") %>%
+  ggplot(aes(x = DOY2, y = cum_value, color = Year2, linetype = Flux)) +
+  facet_wrap(~Method) +
+  ylab("Cumulative Flux (g C m-2)") +
+  xlab("Days since April 1st") +
+  geom_line() +
+  theme_bw() 
+```
+
+## Next steps
+
+Comparison of growing season interannual variability
+  * *Wavelet Decomposition* ("wavelets" package?)
+    * ID biophysical drivers of CO2 + CH4
+  * *Information Theory* ("infotheo" package?)
+    * ID interaction between salinity and biophys drivers affect on CO2
+  * Empirically model CO2: how important is salinity?
+  * If salinity is important, what drives salinity?
+
+
