@@ -1,42 +1,188 @@
 ---
 title: "ReddyProc Output"
-output: 
+output:
   html_document:
-    toc: true
-    number_sections: true
+    keep_md: TRUE
+    number_sections: yes
     theme: paper
+    toc: yes
+  pdf_document:
+    toc: yes
 ---
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 library(tidyverse)
 library(lubridate)
+library(plotly)
 ```
 
-# Load and Clean Data
+# Load and Clean Data {.tabset}
 
-* Load units and data into separate data.frames. 
-* Convert numeric variables to numeric class. 
-* Create POSIXct date variable. 
+## Variables and Units
+
 * Examine variable names and units.
 
-```{r}
-units <- read.table("~/Documents/MS_Thesis/REddyResults_RushRanch_20191007_31248140/output.txt",
+```{r, echo=FALSE, warning=FALSE}
+units <- read.table("~/Documents/MS_Thesis/Rush_Ranch/REddyResults_RushRanch_20191007_31248140/output.txt",
                    header=T,
                    nrows = 1) 
-data <- read.table("~/Documents/MS_Thesis/REddyResults_RushRanch_20191007_31248140/output.txt",
-                   header=T) %>%
-    filter(Hour != "-") %>%
-    mutate(Hour = as.numeric(as.character(Hour)),
-          date = as.POSIXct(strptime(paste(Year, DoY, paste(floor(Hour), round((Hour-floor(Hour))*60),                               sep=":")), format="%Y %j %H:%M")))
-
 units %>%
   pivot_longer(everything(), names_to = "Variable", values_to = "Unit") %>%
   DT::datatable()
 ```
 
-# Comparison by Paritioning Technique {.tabset}
+## Load ReddyProc Output
 
-## 
+* Create POSIXct date variable.
+* Create DoY2 (Number of Days since April 1st)
+* Convert numeric variables from factor to numeric class
 
-```{r}
+```{r, echo=FALSE, warning=FALSE}
+data <- read.table("~/Documents/MS_Thesis/Rush_Ranch/REddyResults_RushRanch_20191007_31248140/output.txt",
+                   header=T) %>%
+        filter(Hour != "-") %>%
+        mutate(
+          Hour = as.numeric(as.character(Hour)),
+          date = as.POSIXct(strptime(paste(Year, DoY, paste(floor(Hour), round((Hour-floor(Hour))*60),                               sep=":")), format="%Y %j %H:%M")),
+          DoY = as.numeric(as.character(DoY)),
+          DOY2 = if_else(DoY >= 91, DoY - 90, DoY + 275),
+          DOY2 = c(lead(DOY2)),
+          Month = month(date),
+          Year =  as.numeric(as.character(Year)),
+          GPP_f = as.numeric(as.character(GPP_f)),
+          GPP_DT = as.numeric(as.character(GPP_DT)),
+          Reco = as.numeric(as.character(Reco)),
+          Reco_DT = as.numeric(as.character(Reco_DT))
+         )
+```
+
+## Create second Year Variable
+
+This will allow us to group by the new DoY for plotting. There's probably a better way to do this. I might change this later.
+
+```{r, echo=FALSE, warning=FALSE}
+data$Year2[data$Month < 04 & data$Year == 2014] <- "2013-2014"
+data$Year2[data$Month >= 04 & data$Year == 2014] <- "2014-2015"
+data$Year2[data$Month < 04 & data$Year == 2015] <- "2014-2015"
+data$Year2[data$Month >= 04 & data$Year == 2015] <- "2015-2016"
+data$Year2[data$Month < 04 & data$Year == 2016] <- "2015-2016"
+data$Year2[data$Month >= 04 & data$Year == 2016] <- "2016-2017"
+data$Year2[data$Month < 04 & data$Year == 2017] <- "2016-2017"
+data$Year2[data$Month >= 04 & data$Year == 2017] <- "2017-2018"
+data$Year2[data$Month < 04 & data$Year == 2018] <- "2017-2018"
+data$Year2[data$Month >= 04 & data$Year == 2018] <- "2018-2019"
+```
+
+# Comparison by Flux and Partitioning Method
+
+* Load original ANN output
+
+```{r, echo=FALSE, warning=FALSE}
+data2 <- read.csv("~/Documents/MS_Thesis/Rush_Ranch/USSrr_v2.csv") %>%
+  mutate(date = as.POSIXct(strptime(paste(year, DOY, paste(floor(time), round((time-floor(time))*60),                               sep=":")), format="%Y %j %H:%M")))
+```
+
+* Join ANN output to ReddyProc output
+* Convert fluxes from µmol CO2 m-2 s-1 to µmol CO2 m-2.
+
+```{r, echo=FALSE, warning=FALSE}
+data %>%
+  left_join(data2[, c('date','gpp_ANNnight', 'er_ANNnight')], by = 'date') %>%
+  group_by(Year2) %>%
+  mutate(GPP_Nighttime = cumsum(-as.numeric(as.character(GPP_f))*1800*12.01e-6),
+         GPP_Daytime = cumsum(-as.numeric(as.character(GPP_DT))*1800*12.01e-6),
+         GPP_ANN = cumsum(as.numeric(as.character(gpp_ANNnight))*1800*12.01e-6),
+         Reco_Nighttime = cumsum(as.numeric(as.character(Reco))*1800*12.01e-6),
+         Reco_Daytime = cumsum(as.numeric(as.character(Reco_DT))*1800*12.01e-6),
+         Reco_ANN = cumsum(as.numeric(as.character(er_ANNnight))*1800*12.01e-6)
+         ) %>%
+  select(GPP_Nighttime, GPP_Daytime, GPP_ANN, Reco_Nighttime, Reco_Daytime, Reco_ANN, Year2, DOY2) %>%
+  pivot_longer(cols = -c(Year2, DOY2),
+               names_to = c("Flux", "Method"),
+               names_sep = c("_"),
+               values_to = "cum_value") %>%
+  mutate(cum_value = as.numeric(as.character(cum_value))) %>%
+  drop_na() %>%
+  filter(DOY2 > 1,
+         Year2 != "2013-2014") %>%
+  ggplot(aes(x = DOY2, y = cum_value, color = Year2, linetype = Flux)) +
+  facet_wrap(~Method) +
+  ylab("Cumulative Flux (g CO2 m-2)") +
+  xlab("Days since April 1st") +
+  geom_line() +
+  theme_bw() 
+```
+
+This is excellent! Our story doesn't change depending on the partitioning method.
+What is causing interannual variability in GPP then?
+
+# Environmental Drivers
+
+```{r, echo=FALSE, warning=FALSE}
+p <- data %>%
+  left_join(data2[, c('date','gpp_ANNnight', 'Sal', 'pH', 'Depth','RH', 'SunCount')], by = 'date') %>%
+  filter(Month > 6 & Month < 9,
+         SunCount == 30) %>%
+  mutate(GPP = -gpp_ANNnight*1800*12.01e-6,
+         Tair = as.numeric(as.character(Tair)),
+         Depth = as.numeric(as.character(Depth)),
+         pH = as.numeric(as.character(pH)),
+         VPD_f = as.numeric(as.character(VPD_f)),
+         RH = as.numeric(as.character(RH))) %>%
+  group_by(DOY2, Year2) %>%
+  summarize(Sal = mean(Sal), 
+            Tair = mean(Tair), 
+            pH = mean(pH), 
+            Depth = mean(Depth),
+            VPD_f = mean(VPD_f),
+            GPP = last(cumsum(GPP)),
+            RH = mean(RH)) %>%
+  pivot_longer(cols = c("Sal", "Tair", "pH", "Depth", "VPD_f", "RH"), names_to = "Var", values_to = "Val") %>%
+  ggplot(aes(x = Val, y = GPP)) +
+  geom_point(alpha = 0.6, size = 0.7 , aes(color = Year2)) +
+  facet_wrap(~Var, scales='free_x') +
+  geom_smooth(method = "loess", size = 0.5) +
+  labs(y = "g C m-2 day-2", x = NULL) +
+  theme_bw()
+
+p %>%
+  ggplotly()
+```
+
+## Interactions with Salinity
+
+[AIC Results Table](https://srussell2416.github.io/Rush_Ranch/StargazerTable.pdf)
+
+```{r, echo=FALSE, warning=FALSE}
+p <- data %>%
+  left_join(data2[, c('date','gpp_ANNnight', 'Sal', 'pH', 'SWC', 'Depth','RH')], by = 'date') %>%
+  filter(Month > 6 & Month < 9) %>%
+  mutate(GPP = -gpp_ANNnight*1800*12.01e-6,
+         Tair = as.numeric(as.character(Tair)),
+         Depth = as.numeric(as.character(Depth)),
+         pH = as.numeric(as.character(pH)),
+         SWC = as.numeric(as.character(SWC)),
+         RH = as.numeric(as.character(RH)),
+         VPD_f = as.numeric(as.character(VPD_f))) %>%
+  group_by(DOY2, Year2) %>%
+  summarize(Sal = mean(Sal), 
+            Tair = max(Tair), 
+            pH = mean(pH), 
+            Depth = mean(Depth),
+            SWC = mean(SWC),
+            GPP = last(cumsum(GPP)),
+            RH = min(RH),
+            VPD_f = mean(VPD_f)) %>%
+  pivot_longer(cols = c("Tair", "pH", "Depth", "SWC", "RH", "VPD_f"), names_to = "Var", values_to = "Val") %>%
+  group_by(Var) %>%
+  nest() %>%
+  mutate(plot = map2(data, Var, .f = ~ggplot(data = .x) + 
+                        theme_bw() +
+                        geom_point(aes(y = GPP, x = Sal, col = Val), size = 0.7, alpha = 0.7) +
+                        ggtitle(.y) +
+                        ylab("GPP") +
+                        xlab("Salinity")
+                      )
+          )
+cowplot::plot_grid(plotlist = p$plot)
 ```
