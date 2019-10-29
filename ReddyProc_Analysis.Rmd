@@ -2,11 +2,8 @@
 title: "ReddyProc Output"
 output:
   html_document:
-    keep_md: TRUE
     number_sections: yes
     theme: paper
-    toc: yes
-  pdf_document:
     toc: yes
 ---
 
@@ -14,6 +11,7 @@ output:
 library(tidyverse)
 library(lubridate)
 library(plotly)
+library(gridExtra)
 ```
 
 # Load and Clean Data {.tabset}
@@ -116,10 +114,10 @@ data %>%
 This is excellent! Our story doesn't change depending on the partitioning method.
 What is causing interannual variability in GPP then?
 
-# Environmental Drivers
+# Environmental Drivers of GPP
 
 ```{r, echo=FALSE, warning=FALSE}
-p <- data %>%
+data %>%
   left_join(data2[, c('date','gpp_ANNnight', 'Sal', 'pH', 'Depth','RH', 'SunCount')], by = 'date') %>%
   filter(Month > 6 & Month < 9,
          SunCount == 30) %>%
@@ -128,8 +126,9 @@ p <- data %>%
          Depth = as.numeric(as.character(Depth)),
          pH = as.numeric(as.character(pH)),
          VPD_f = as.numeric(as.character(VPD_f)),
-         RH = as.numeric(as.character(RH))) %>%
-  group_by(DOY2, Year2) %>%
+         RH = as.numeric(as.character(RH)),
+         Year = as.factor(Year)) %>%
+  group_by(DOY2, Year) %>%
   summarize(Sal = mean(Sal), 
             Tair = mean(Tair), 
             pH = mean(pH), 
@@ -139,14 +138,77 @@ p <- data %>%
             RH = mean(RH)) %>%
   pivot_longer(cols = c("Sal", "Tair", "pH", "Depth", "VPD_f", "RH"), names_to = "Var", values_to = "Val") %>%
   ggplot(aes(x = Val, y = GPP)) +
-  geom_point(alpha = 0.6, size = 0.7 , aes(color = Year2)) +
+  geom_point(alpha = 0.6, size = 0.7 , aes(color = Year)) +
   facet_wrap(~Var, scales='free_x') +
   geom_smooth(method = "loess", size = 0.5) +
-  labs(y = "g C m-2 day-2", x = NULL) +
+  labs(y = "GPP (g C m-2 day-2)", x = NULL) +
   theme_bw()
 
-p %>%
-  ggplotly()
+```
+
+## Growing Season Interannual Variability in Environmental Drivers
+
+```{r, echo=FALSE, warning=FALSE, fig.height = 9, fig.width = 8}
+p2 <- data %>%
+  left_join(data2[, c('date', 'Sal', 'pH', 'Depth','RH', 'SWC', 'SunCount')], by = 'date') %>%
+  filter(Month > 6 & Month < 9,
+         SunCount == 30) %>%
+  mutate(Tair = as.numeric(as.character(Tair)),
+         Depth = as.numeric(as.character(Depth)),
+         pH = as.numeric(as.character(pH)),
+         VPD_f = as.numeric(as.character(VPD_f)),
+         RH = as.numeric(as.character(RH)),
+         SWC = as.numeric(as.character(SWC)),
+         Year = as.factor(Year)) %>%
+  group_by(DOY2, Year) %>%
+  summarize(Sal = mean(Sal), 
+            Tair = mean(Tair), 
+            pH = mean(pH), 
+            Depth = mean(Depth),
+            VPD_f = mean(VPD_f),
+            RH = mean(RH),
+            SWC = mean(SWC)) %>%
+  pivot_longer(cols = c("Sal", "Tair", "pH", "Depth", "VPD_f", "RH", 'SWC'), 
+               names_to = "Var", 
+               values_to = "Val") %>%
+  ggplot(aes(x = DOY2, y = Val)) +
+  geom_line(aes(color = Year)) +
+  facet_wrap(~Var, scales='free_y', nrow = 7) +
+  labs(y = NULL, x = "Days Since April 1st") +
+  theme_bw() +
+  theme(legend.position = "right")
+
+p1 <- data %>%
+  left_join(data2[, c('date', 'Sal', 'pH', 'Depth','RH', 'SWC', 'SunCount')], by = 'date') %>%
+  filter(Month > 6 & Month < 9,
+         SunCount == 30) %>%
+  mutate(Tair = as.numeric(as.character(Tair)),
+         Depth = as.numeric(as.character(Depth)),
+         pH = as.numeric(as.character(pH)),
+         VPD_f = as.numeric(as.character(VPD_f)),
+         RH = as.numeric(as.character(RH)),
+         SWC = as.numeric(as.character(SWC)),
+         Year = as.factor(Year)) %>%
+  group_by(DOY2, Year) %>%
+  summarize(Sal = mean(Sal), 
+            Tair = mean(Tair), 
+            pH = mean(pH), 
+            Depth = mean(Depth),
+            VPD_f = mean(VPD_f),
+            RH = mean(RH),
+            SWC = mean(SWC)) %>%
+  pivot_longer(cols = c("Sal", "Tair", "pH", "Depth", "VPD_f", "RH", 'SWC'), 
+               names_to = "Var", 
+               values_to = "Val") %>%
+  ggplot(aes(x = Year, y = Val, col = Year)) +
+  facet_wrap(~Var, scales='free_y', nrow = 7) +
+  geom_boxplot() +
+  labs(y = "Value", x = "Growing Season Year") +
+  theme_bw() +
+  theme(legend.position = "none")
+
+grid.arrange(p1, p2, nrow = 1)
+
 ```
 
 ## Interactions with Salinity
